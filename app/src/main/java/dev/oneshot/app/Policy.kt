@@ -5,17 +5,18 @@ import android.net.Uri
 /** Which pages may be reached from which. All site lists live here. */
 object Policy {
 
-    /** Sites where the opened page is locked: the URL may not change at all. */
-    private val lockedSites = listOf(
-        "youtube.com", "youtu.be", "youtube-nocookie.com",
-        "reddit.com", "redd.it",
-    )
-
-    /** Infinite-scroll feeds that are always capped, though their links still work. */
-    private val feedSites = listOf(
-        "instagram.com", "tiktok.com", "facebook.com", "x.com", "twitter.com",
-        "threads.net", "threads.com", "pinterest.com", "linkedin.com", "tumblr.com",
-        "9gag.com", "imgur.com", "quora.com", "twitch.tv", "bsky.app",
+    /**
+     * Social sites, by domain, named so a site's domains count as one. The page you open on
+     * one is locked: links within the site are blocked, links off it work, scrolling is capped.
+     */
+    private val socialSites = mapOf(
+        "youtube.com" to "youtube", "youtu.be" to "youtube", "youtube-nocookie.com" to "youtube",
+        "reddit.com" to "reddit", "redd.it" to "reddit",
+        "instagram.com" to "instagram", "tiktok.com" to "tiktok", "facebook.com" to "facebook",
+        "x.com" to "x", "twitter.com" to "x", "threads.net" to "threads", "threads.com" to "threads",
+        "pinterest.com" to "pinterest", "linkedin.com" to "linkedin", "tumblr.com" to "tumblr",
+        "9gag.com" to "9gag", "imgur.com" to "imgur", "quora.com" to "quora",
+        "twitch.tv" to "twitch", "bsky.app" to "bluesky",
     )
 
     /** How far a feed may scroll, in screen heights. */
@@ -47,9 +48,25 @@ object Policy {
 
     fun isHttp(uri: Uri) = uri.scheme == "http" || uri.scheme == "https"
 
-    fun isLocked(uri: Uri) = lockedSites.any { hostMatches(uri, it) } && !isAuth(uri)
+    /** The social site [uri] is on, e.g. "youtube" for youtu.be, or null. */
+    fun network(uri: Uri) = socialSites.entries.firstOrNull { hostMatches(uri, it.key) }?.value
 
-    fun isFeed(uri: Uri) = isLocked(uri) || feedSites.any { hostMatches(uri, it) } && !isAuth(uri)
+    fun isLocked(uri: Uri) = network(uri) != null && !isAuth(uri)
+
+    /** Where a site's outbound-link redirector (l.instagram.com/?u=...) is sending you, or null. */
+    fun linkTarget(uri: Uri): Uri? {
+        val host = uri.host?.lowercase() ?: return null
+        val path = uri.path.orEmpty()
+        val param = when {
+            host == "l.instagram.com" || host == "l.facebook.com" || host == "lm.facebook.com" -> "u"
+            hostMatches(uri, "youtube.com") && path == "/redirect" -> "q"
+            host == "out.reddit.com" -> "url"
+            hostMatches(uri, "linkedin.com") && path.startsWith("/redir") -> "url"
+            host == "t.umblr.com" -> "z"
+            else -> return null
+        }
+        return uri.getQueryParameter(param)?.let(Uri::parse)
+    }
 
     fun isAuth(uri: Uri) = authPatterns.any { pattern ->
         val host = pattern.substringBefore('/')
@@ -76,12 +93,11 @@ object Policy {
     /** What must stay the same on a locked page. Ignores tracking params and timestamps. */
     fun lockKey(uri: Uri): String {
         val path = uri.path.orEmpty().trimEnd('/').lowercase()
-        return when (site(uri)) {
-            "youtu.be" -> "yt:watch:" + path.removePrefix("/")
-            "youtube.com", "youtube-nocookie.com" ->
-                if (path == "/watch") "yt:watch:" + uri.getQueryParameter("v")?.lowercase()
-                else "yt:$path"
-            else -> "${site(uri)}:$path"
+        val name = network(uri) ?: site(uri)
+        return when {
+            site(uri) == "youtu.be" -> "youtube:watch:" + path.removePrefix("/")
+            name == "youtube" && path == "/watch" -> "youtube:watch:" + uri.getQueryParameter("v")?.lowercase()
+            else -> "$name:$path"
         }
     }
 

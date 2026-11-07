@@ -48,7 +48,6 @@ class MainActivity : Activity() {
     private var fileCallback: ValueCallback<Array<Uri>>? = null
 
     // Navigation state for the main page.
-    private var homeSite: String? = null
     private var lockKey: String? = null
     private var lockUrl: String? = null
     private var searchMode = false
@@ -119,8 +118,8 @@ class MainActivity : Activity() {
         var i = history.currentIndex - 1
         // A locked page's history also holds the URL changes that were blocked and undone,
         // so skip past all of them to whatever came before the locked page.
-        if (lockKey != null) {
-            while (i >= 0 && Policy.isLocked(Uri.parse(history.getItemAtIndex(i).url))) i--
+        lockedNetwork()?.let { locked ->
+            while (i >= 0 && Policy.network(Uri.parse(history.getItemAtIndex(i).url)) == locked) i--
         }
         if (i < 0) {
             web = null
@@ -129,7 +128,6 @@ class MainActivity : Activity() {
             return
         }
         val uri = Uri.parse(history.getItemAtIndex(i).url)
-        homeSite = Policy.site(uri)
         searchMode = Policy.isGoogleSearch(uri)
         lockKey = null
         lockUrl = null
@@ -185,7 +183,6 @@ class MainActivity : Activity() {
 
     private fun openPage(url: String) {
         val uri = Uri.parse(url)
-        homeSite = Policy.site(uri)
         searchMode = Policy.isGoogleSearch(uri)
         lockKey = null
         lockUrl = null
@@ -223,17 +220,21 @@ class MainActivity : Activity() {
     // ---- Rules ----
 
     /** Decides whether the main page may navigate to [uri]. */
-    private fun allowed(uri: Uri, isRedirect: Boolean): Boolean {
+    private fun allowed(uri: Uri): Boolean {
         val current = currentUrl?.let(Uri::parse)
+        val target = Policy.linkTarget(uri) ?: uri
+        val locked = lockedNetwork()
         return when {
-            Policy.isAuth(uri) -> true
-            isRedirect -> true
+            Policy.isAuth(target) -> true
             current != null && Policy.isAuth(current) -> true
-            lockKey != null -> Policy.lockKey(uri) == lockKey
-            searchMode -> true
-            else -> Policy.site(uri) == homeSite
+            // On a social page: only that page on the same site; anywhere off the site is fine.
+            locked != null && Policy.network(target) == locked -> Policy.lockKey(target) == lockKey
+            else -> true
         }
     }
+
+    /** The social site the current page is locked to, if any. */
+    private fun lockedNetwork() = lockUrl?.let { Policy.network(Uri.parse(it)) }
 
     private fun blocked() {
         Toast.makeText(this, "Blocked: this page stays put", Toast.LENGTH_SHORT).show()
@@ -250,7 +251,7 @@ class MainActivity : Activity() {
         val url = currentUrl ?: return
         if (searchMode) return
         val screen = view.height
-        val limit = if (Policy.isFeed(Uri.parse(url))) {
+        val limit = if (Policy.isLocked(Uri.parse(url))) {
             (screen * Policy.MAX_SCROLL_SCREENS).toInt()
         } else {
             feedLimit ?: detectFeed(view as WebView, y, screen) ?: return
@@ -308,7 +309,7 @@ class MainActivity : Activity() {
                 return if (uri.scheme in setOf("about", "data", "blob", "javascript")) false
                 else openExternal(uri)
             }
-            if (allowed(uri, request.isRedirect)) return false
+            if (allowed(uri)) return false
             blocked()
             return true
         }
@@ -322,7 +323,12 @@ class MainActivity : Activity() {
             } else if (searchMode && Policy.isHttp(uri) && !Policy.isAuth(uri)) {
                 // Left Google search for a result: that result is the new page.
                 searchMode = false
-                homeSite = Policy.site(uri)
+                lockKey = null
+                lockUrl = null
+            }
+            val locked = lockedNetwork()
+            if (locked != null && Policy.isHttp(uri) && !Policy.isAuth(uri) && Policy.network(uri) != locked) {
+                // Followed a link off the social site: the new page gets its own lock, if any.
                 lockKey = null
                 lockUrl = null
             }
@@ -342,7 +348,9 @@ class MainActivity : Activity() {
             currentUrl = url
             val key = lockKey ?: return
             val uri = Uri.parse(url)
-            if (Policy.isLocked(uri) && Policy.lockKey(uri) != key) {
+            if (Policy.network(uri) == lockedNetwork() && Policy.linkTarget(uri) == null &&
+                Policy.isLocked(uri) && Policy.lockKey(uri) != key
+            ) {
                 blocked()
                 lockUrl?.let { view.loadUrl(it) }
             }
@@ -428,7 +436,7 @@ class MainActivity : Activity() {
                 showPopup(view)
                 return false
             }
-            if (allowed(uri, isRedirect = false)) web?.loadUrl(uri.toString()) else blocked()
+            if (allowed(uri)) web?.loadUrl(uri.toString()) else blocked()
             view.stopLoading()
             view.post { view.destroy() }
             return true
