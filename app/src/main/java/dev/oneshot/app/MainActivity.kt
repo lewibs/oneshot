@@ -103,9 +103,32 @@ class MainActivity : Activity() {
         when {
             fullscreenView != null -> fullscreenCallback?.onCustomViewHidden()
             popup != null -> closePopup()
-            w != null && lockKey == null && w.canGoBack() -> w.goBack()
+            w != null -> goBack(w)
             else -> finish()
         }
+    }
+
+    /** Back to the previous page you were actually on, or to the search screen if there is none. */
+    private fun goBack(w: WebView) {
+        val history = w.copyBackForwardList()
+        var i = history.currentIndex - 1
+        // A locked page's history also holds the URL changes that were blocked and undone,
+        // so skip past all of them to whatever came before the locked page.
+        if (lockKey != null) {
+            while (i >= 0 && Policy.isLocked(Uri.parse(history.getItemAtIndex(i).url))) i--
+        }
+        if (i < 0) {
+            web = null
+            w.destroy()
+            showStart()
+            return
+        }
+        val uri = Uri.parse(history.getItemAtIndex(i).url)
+        homeSite = Policy.site(uri)
+        searchMode = Policy.isGoogleSearch(uri)
+        lockKey = null
+        lockUrl = null
+        w.goBackOrForward(i - history.currentIndex)
     }
 
     // ---- Opening pages ----
