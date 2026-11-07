@@ -11,6 +11,9 @@ object Policy {
         "reddit.com", "redd.it",
     )
 
+    /** How far a YouTube/Reddit page may scroll, in screen heights. */
+    const val MAX_SCROLL_SCREENS = 3.0
+
     /** Apps that links must never escape into. */
     val blockedApps = setOf("com.google.android.youtube", "com.reddit.frontpage")
     val blockedSchemes = setOf("vnd.youtube", "youtube", "reddit")

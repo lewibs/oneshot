@@ -34,7 +34,7 @@ import android.window.OnBackInvokedDispatcher
 /**
  * Opens one page and keeps you there. Rules:
  *  - sign-in/payment pages and server redirects are always allowed
- *  - YouTube/Reddit pages are locked: the URL may not change at all
+ *  - YouTube/Reddit pages are locked: the URL may not change at all, and scrolling is capped
  *  - Google search results each open as a new page
  *  - otherwise only links within the same site are allowed
  */
@@ -164,6 +164,7 @@ class MainActivity : Activity() {
 
         val w = web ?: newWebView(PageClient()).also {
             web = it
+            it.setOnScrollChangeListener { v, x, y, _, _ -> capScroll(v, x, y) }
             root.removeAllViews()
             root.addView(it, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         }
@@ -208,9 +209,12 @@ class MainActivity : Activity() {
         Toast.makeText(this, "Blocked: this page stays put", Toast.LENGTH_SHORT).show()
     }
 
-    private fun injectCss(view: WebView, url: String?) {
-        val script = url?.let { Distractions.script(Uri.parse(it)) } ?: return
-        view.evaluateJavascript(script, null)
+    /** On YouTube/Reddit, stops the page from scrolling past a few screens so feeds can't be scrolled. */
+    private fun capScroll(view: View, x: Int, y: Int) {
+        val url = currentUrl ?: return
+        if (searchMode || !Policy.isLocked(Uri.parse(url))) return
+        val limit = (view.height * Policy.MAX_SCROLL_SCREENS).toInt()
+        if (y > limit) view.scrollTo(x, limit)
     }
 
     /** Non-web links (mail, phone, app intents). Returns true: the WebView never loads them itself. */
@@ -267,11 +271,8 @@ class MainActivity : Activity() {
             }
         }
 
-        override fun onPageCommitVisible(view: WebView, url: String) = injectCss(view, url)
-
         override fun onPageFinished(view: WebView, url: String) {
             currentUrl = url
-            injectCss(view, url)
             val uri = Uri.parse(url)
             if (lockKey == null && !searchMode && Policy.isLocked(uri)) {
                 lockKey = Policy.lockKey(uri)
@@ -282,7 +283,6 @@ class MainActivity : Activity() {
         // Catches YouTube/Reddit changing the URL with JavaScript instead of loading a page.
         override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
             currentUrl = url
-            injectCss(view, url)
             val key = lockKey ?: return
             val uri = Uri.parse(url)
             if (Policy.isLocked(uri) && Policy.lockKey(uri) != key) {
