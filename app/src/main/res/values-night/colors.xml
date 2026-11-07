@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#101318</color>
+    <color name="surface">#1B2028</color>
+    <color name="stroke">#2A313C</color>
+    <color name="text">#ECEFF3</color>
+    <color name="text_muted">#9AA3AF</color>
+    <color name="logo_ring">#ECEFF3</color>
+</resources>

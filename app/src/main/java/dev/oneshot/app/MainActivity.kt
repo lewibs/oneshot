@@ -4,31 +4,30 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Message
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Patterns
-import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.WindowInsets
 import android.view.WindowInsetsController
-import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.webkit.CookieManager
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.TextView
+import android.widget.ImageButton
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 
@@ -65,10 +64,12 @@ class MainActivity : Activity() {
             WindowInsets.CONSUMED
         }
         setContentView(root)
-        // Dark status/nav bar icons, since the app background is light.
+        // Status/nav bar icons that contrast with the light or dark background.
         val darkIcons = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
             WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-        window.insetsController?.setSystemBarsAppearance(darkIcons, darkIcons)
+        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+            Configuration.UI_MODE_NIGHT_YES
+        window.insetsController?.setSystemBarsAppearance(if (night) 0 else darkIcons, darkIcons)
 
         if (Build.VERSION.SDK_INT >= 33) {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(
@@ -129,35 +130,30 @@ class MainActivity : Activity() {
     }
 
     private fun showStart() {
-        val input = EditText(this).apply {
-            hint = "Paste a link or search"
-            isSingleLine = true
-            imeOptions = EditorInfo.IME_ACTION_GO
-            inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_VARIATION_URI
-        }
+        val view = layoutInflater.inflate(R.layout.start, root, false)
+        val input = view.findViewById<EditText>(R.id.input)
+        val goButton = view.findViewById<ImageButton>(R.id.go)
         val go = { if (input.text.isNotBlank()) openPage(toUrl(input.text.toString())) }
+
         input.setOnEditorActionListener { _, _, _ -> go(); true }
-        val button = Button(this).apply {
-            text = "Open"
-            setOnClickListener { go() }
-        }
-        val title = TextView(this).apply {
-            text = "OneShot"
-            textSize = 24f
-        }
-        val pad = (24 * resources.displayMetrics.density).toInt()
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(pad, pad, pad, pad)
-            addView(title)
-            addView(input, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-            addView(button, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
-        }
+        input.doAfterTextChanged { goButton.visibility = if (it.isNullOrBlank()) View.GONE else View.VISIBLE }
+        goButton.setOnClickListener { go() }
+        view.findViewById<View>(R.id.search_bar).setOnClickListener { input.requestFocus() }
+
         root.removeAllViews()
-        root.addView(layout, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        root.addView(view, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         input.requestFocus()
+        input.post {
+            getSystemService(InputMethodManager::class.java).showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+        }
     }
+
+    private fun EditText.doAfterTextChanged(action: (Editable?) -> Unit) =
+        addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) = action(s)
+        })
 
     private fun openPage(url: String) {
         val uri = Uri.parse(url)
