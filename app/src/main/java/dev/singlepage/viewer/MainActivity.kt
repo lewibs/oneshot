@@ -16,6 +16,7 @@ import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.inputmethod.EditorInfo
 import android.webkit.CookieManager
 import android.webkit.ValueCallback
@@ -64,6 +65,10 @@ class MainActivity : Activity() {
             WindowInsets.CONSUMED
         }
         setContentView(root)
+        // Dark status/nav bar icons, since the app background is light.
+        val darkIcons = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+            WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        window.insetsController?.setSystemBarsAppearance(darkIcons, darkIcons)
 
         if (Build.VERSION.SDK_INT >= 33) {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(
