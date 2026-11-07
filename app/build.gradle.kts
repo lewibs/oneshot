@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace = "dev.singlepage.viewer"
+    namespace = "dev.oneshot.app"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "dev.singlepage.viewer"
+        applicationId = "dev.oneshot.app"
         minSdk = 30
         targetSdk = 36
         versionCode = 1

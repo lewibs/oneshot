@@ -1,4 +1,4 @@
-package dev.singlepage.viewer
+package dev.oneshot.app
 
 import android.net.Uri
 

@@ -11,5 +11,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "single-page-viewer"
+rootProject.name = "oneshot"
 include(":app")

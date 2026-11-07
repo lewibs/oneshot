@@ -4,8 +4,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:label="Single Page"
-        android:icon="@android:drawable/sym_def_app_icon"
+        android:label="OneShot"
+        android:icon="@mipmap/ic_launcher"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
         <activity

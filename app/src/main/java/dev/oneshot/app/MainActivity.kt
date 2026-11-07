@@ -1,4 +1,4 @@
-package dev.singlepage.viewer
+package dev.oneshot.app
 
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -142,7 +142,7 @@ class MainActivity : Activity() {
             setOnClickListener { go() }
         }
         val title = TextView(this).apply {
-            text = "Single Page"
+            text = "OneShot"
             textSize = 24f
         }
         val pad = (24 * resources.displayMetrics.density).toInt()
