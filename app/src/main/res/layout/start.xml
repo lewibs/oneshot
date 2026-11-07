@@ -12,34 +12,37 @@
         android:layout_height="0dp"
         android:layout_weight="2" />
 
-    <ImageView
-        android:layout_width="72dp"
-        android:layout_height="72dp"
-        android:contentDescription="@null"
-        android:src="@drawable/logo" />
-
-    <TextView
+    <!-- Wordmark: the target is the "O", sitting on the text baseline. -->
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:fontFamily="sans-serif-medium"
-        android:text="OneShot"
-        android:textColor="@color/text"
-        android:textSize="30sp" />
+        android:baselineAligned="true"
+        android:orientation="horizontal">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="One page at a time"
-        android:textColor="@color/text_muted"
-        android:textSize="15sp" />
+        <ImageView
+            android:layout_width="34sp"
+            android:layout_height="34sp"
+            android:layout_marginEnd="1sp"
+            android:baselineAlignBottom="true"
+            android:contentDescription="O"
+            android:src="@drawable/logo" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:includeFontPadding="false"
+            android:letterSpacing="-0.02"
+            android:text="neShot"
+            android:textColor="@color/text"
+            android:textSize="48sp" />
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/search_bar"
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:layout_marginTop="32dp"
+        android:layout_marginTop="40dp"
         android:background="@drawable/search_pill"
         android:elevation="3dp"
         android:gravity="center_vertical"
