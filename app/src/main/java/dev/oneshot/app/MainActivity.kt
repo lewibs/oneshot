@@ -54,6 +54,11 @@ class MainActivity : Activity() {
     private var searchMode = false
     private var currentUrl: String? = null
 
+    // Infinite-scroll detection for pages not on the feed list.
+    private var pageHeight = 0
+    private var growths = 0
+    private var feedLimit: Int? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         root = FrameLayout(this)
@@ -185,6 +190,7 @@ class MainActivity : Activity() {
         lockKey = null
         lockUrl = null
         currentUrl = url
+        resetFeedDetection()
 
         val w = web ?: newWebView(PageClient()).also {
             web = it
@@ -234,11 +240,37 @@ class MainActivity : Activity() {
     }
 
     /** On YouTube/Reddit, stops the page from scrolling past a few screens so feeds can't be scrolled. */
+    private fun resetFeedDetection() {
+        pageHeight = 0
+        growths = 0
+        feedLimit = null
+    }
+
     private fun capScroll(view: View, x: Int, y: Int) {
         val url = currentUrl ?: return
-        if (searchMode || !Policy.isLocked(Uri.parse(url))) return
-        val limit = (view.height * Policy.MAX_SCROLL_SCREENS).toInt()
+        if (searchMode) return
+        val screen = view.height
+        val limit = if (Policy.isFeed(Uri.parse(url))) {
+            (screen * Policy.MAX_SCROLL_SCREENS).toInt()
+        } else {
+            feedLimit ?: detectFeed(view as WebView, y, screen) ?: return
+        }
         if (y > limit) view.scrollTo(x, limit)
+    }
+
+    /**
+     * Any other page counts as a feed once it keeps loading more content as you near its bottom.
+     * Returns the scroll limit once it does, or null while it still looks like a normal page.
+     */
+    private fun detectFeed(w: WebView, y: Int, screen: Int): Int? {
+        @Suppress("DEPRECATION")
+        val height = (w.contentHeight * w.scale).toInt()
+        val nearOldBottom = y > screen && y + screen >= pageHeight - 2 * screen
+        if (pageHeight > 0 && height > pageHeight + screen / 2 && nearOldBottom) growths++
+        pageHeight = maxOf(pageHeight, height)
+        if (growths < Policy.FEED_GROWTHS) return null
+        Toast.makeText(this, "Infinite scroll: stopping here", Toast.LENGTH_SHORT).show()
+        return maxOf((screen * Policy.MAX_SCROLL_SCREENS).toInt(), y).also { feedLimit = it }
     }
 
     /** Non-web links (mail, phone, app intents). Returns true: the WebView never loads them itself. */
@@ -283,6 +315,7 @@ class MainActivity : Activity() {
 
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
             currentUrl = url
+            resetFeedDetection()
             val uri = Uri.parse(url)
             if (Policy.isGoogleSearch(uri)) {
                 searchMode = true

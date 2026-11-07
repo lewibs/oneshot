@@ -11,8 +11,18 @@ object Policy {
         "reddit.com", "redd.it",
     )
 
-    /** How far a YouTube/Reddit page may scroll, in screen heights. */
+    /** Infinite-scroll feeds that are always capped, though their links still work. */
+    private val feedSites = listOf(
+        "instagram.com", "tiktok.com", "facebook.com", "x.com", "twitter.com",
+        "threads.net", "threads.com", "pinterest.com", "linkedin.com", "tumblr.com",
+        "9gag.com", "imgur.com", "quora.com", "twitch.tv", "bsky.app",
+    )
+
+    /** How far a feed may scroll, in screen heights. */
     const val MAX_SCROLL_SCREENS = 3.0
+
+    /** Times a page must load more content as you near its bottom before it counts as a feed. */
+    const val FEED_GROWTHS = 2
 
     /** Apps that links must never escape into. */
     val blockedApps = setOf("com.google.android.youtube", "com.reddit.frontpage")
@@ -38,6 +48,8 @@ object Policy {
     fun isHttp(uri: Uri) = uri.scheme == "http" || uri.scheme == "https"
 
     fun isLocked(uri: Uri) = lockedSites.any { hostMatches(uri, it) } && !isAuth(uri)
+
+    fun isFeed(uri: Uri) = isLocked(uri) || feedSites.any { hostMatches(uri, it) } && !isAuth(uri)
 
     fun isAuth(uri: Uri) = authPatterns.any { pattern ->
         val host = pattern.substringBefore('/')
