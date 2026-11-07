@@ -1,16 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The app icon's target, drawn as the "O" of the OneShot wordmark. -->
+<!-- The wordmark's O: a magnifying glass with a streak shot through it. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="40dp"
-    android:height="40dp"
-    android:viewportWidth="40"
-    android:viewportHeight="40">
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="@color/logo_ring"
-        android:strokeWidth="5.5"
-        android:pathData="M20,2.75 A17.25,17.25 0 1,1 19.99,2.75 Z" />
-    <path
-        android:fillColor="@color/accent"
-        android:pathData="M20,13.5 A6.5,6.5 0 1,1 19.99,13.5 Z" />
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="220dp"
+    android:height="180dp"
+    android:viewportWidth="220"
+    android:viewportHeight="180">
+    <group>
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="@color/logo_ring"
+            android:strokeWidth="22"
+            android:pathData="M109,14.5 A55.5,55.5 0 1,1 108.99,14.5 Z" />
+        <path
+            android:strokeColor="@color/logo_ring"
+            android:strokeWidth="21"
+            android:strokeLineCap="round"
+            android:pathData="M154,114 L190,161" />
+        <path
+            android:fillColor="@color/bg"
+            android:strokeColor="@color/bg"
+            android:strokeWidth="9"
+            android:strokeLineJoin="round"
+            android:pathData="M2.5,147.5 L93,76.9 L212.5,3.5 L101,88.5 Z" />
+        <path android:pathData="M2.5,147.5 L93,76.9 L212.5,3.5 L101,88.5 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="2.5" android:startY="147.5"
+                android:endX="212.5" android:endY="3.5"
+                android:startColor="#8B2CF5"
+                android:endColor="#3B82F6" />
+        </aapt:attr>
+        </path>
+    </group>
 </vector>

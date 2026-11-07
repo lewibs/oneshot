@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#1E3A5F</color>
-    <color name="accent">#FF7A59</color>
+    <color name="ic_launcher_background">#000000</color>
+    <color name="accent">#6366F1</color>
     <color name="bg">#F6F7F9</color>
     <color name="surface">#FFFFFF</color>
     <color name="stroke">#E3E6EB</color>
     <color name="text">#16202E</color>
     <color name="text_muted">#6B7380</color>
-    <color name="logo_ring">#1E3A5F</color>
+    <color name="logo_ring">#0B0B0F</color>
 </resources>
