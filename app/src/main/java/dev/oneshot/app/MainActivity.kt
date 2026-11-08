@@ -700,7 +700,8 @@ class MainActivity : Activity() {
                     Object.keys(rgb).map(c => c.replace(/[()]/g, '[(]').replace(/[)]/g, '[)]')).join('|'), 'gi');
                 const swap = c => map[c.toLowerCase()] || rgb[c];
                 const BASE = 'header:has(#tsf), header:has(form[role=search]),' +
-                    'body > :has(#gb):not(:has([role=navigation], #rso, #main)) { display: none !important; }' +
+                    'body > :has(#gb):not(:has([role=navigation], #rso, #main)),' +
+                    'div:has(> div > div > div > div > a[aria-label="Go to Google home"]) { display: none !important; }' +
                     '@media (prefers-color-scheme: dark) { html, body { background: #000 !important; } }' +
                     '.oneshot-link { background: linear-gradient(90deg, #8b2cf5, #3b82f6) !important;' +
                     '-webkit-background-clip: text !important; background-clip: text !important;' +

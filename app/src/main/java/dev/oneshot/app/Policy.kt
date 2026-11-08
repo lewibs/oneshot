@@ -80,8 +80,9 @@ object Policy {
         it == "/search" || it == "/" || it == "" || it == "/webhp" || it == "/url"
     }
 
-    /** Google's AI Mode chat, which is a results page with udm=50. */
-    fun isAiMode(uri: Uri) = isGoogle(uri) && uri.getQueryParameter("udm") == "50"
+    /** Google's AI Mode chat: its own page (udm=50), or a panel over the results (#lfId=...). */
+    fun isAiMode(uri: Uri) = isGoogle(uri) &&
+        (uri.getQueryParameter("udm") == "50" || uri.fragment.orEmpty().startsWith("lfId="))
 
     /** Roughly the registrable domain: "m.youtube.com" -> "youtube.com", "bbc.co.uk" stays. */
     fun site(uri: Uri): String? {
