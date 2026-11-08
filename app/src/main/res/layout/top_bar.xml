@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Address bar over the page. Slides away when scrolling down, back when scrolling up. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/bg"
+    android:elevation="2dp"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="8dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:background="@drawable/search_pill"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="14dp">
+
+        <ImageView
+            android:id="@+id/search_again"
+            android:layout_width="36dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="-6dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Search again"
+            android:padding="4dp"
+            android:src="@drawable/logo" />
+
+        <EditText
+            android:id="@+id/address"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@null"
+            android:hint="Search Google or paste a link"
+            android:imeOptions="actionGo|flagNoExtractUi"
+            android:importantForAutofill="no"
+            android:inputType="textUri"
+            android:paddingHorizontal="6dp"
+            android:selectAllOnFocus="true"
+            android:singleLine="true"
+            android:textColor="@color/text"
+            android:textColorHint="@color/text_muted"
+            android:textSize="15sp" />
+
+        <ImageView
+            android:id="@+id/clear"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginEnd="-6dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Clear"
+            android:padding="6dp"
+            android:src="@drawable/ic_close"
+            android:visibility="gone" />
+    </LinearLayout>
+</FrameLayout>

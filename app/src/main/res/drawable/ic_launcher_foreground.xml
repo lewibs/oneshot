@@ -18,8 +18,8 @@
             android:strokeLineCap="round"
             android:pathData="M154,114 L190,161" />
         <path
-            android:fillColor="#000000"
-            android:strokeColor="#000000"
+            android:fillColor="@color/ic_launcher_background"
+            android:strokeColor="@color/ic_launcher_background"
             android:strokeWidth="9"
             android:strokeLineJoin="round"
             android:pathData="M2.5,147.5 L93,76.9 L212.5,3.5 L101,88.5 Z" />

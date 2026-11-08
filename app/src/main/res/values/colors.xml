@@ -2,10 +2,10 @@
 <resources>
     <color name="ic_launcher_background">#000000</color>
     <color name="accent">#6366F1</color>
-    <color name="bg">#F6F7F9</color>
-    <color name="surface">#FFFFFF</color>
-    <color name="stroke">#E3E6EB</color>
-    <color name="text">#16202E</color>
-    <color name="text_muted">#6B7380</color>
+    <color name="bg">#FFFFFF</color>
+    <color name="surface">#F1F3F4</color>
+    <color name="stroke">#DADCE0</color>
+    <color name="text">#202124</color>
+    <color name="text_muted">#5F6368</color>
     <color name="logo_ring">#0B0B0F</color>
 </resources>

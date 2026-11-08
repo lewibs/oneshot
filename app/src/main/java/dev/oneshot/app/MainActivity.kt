@@ -11,8 +11,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Message
 import android.text.Editable
+import android.text.TextUtils
 import android.text.TextWatcher
 import android.util.Patterns
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -28,6 +31,9 @@ import android.webkit.WebViewClient
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 
@@ -52,6 +58,15 @@ class MainActivity : Activity() {
     private var lockUrl: String? = null
     private var searchMode = false
     private var currentUrl: String? = null
+        set(value) {
+            field = value
+            showAddress()
+        }
+
+    // Address bar over the page, and its text box.
+    private var topBar: View? = null
+    private var address: EditText? = null
+    private var topBarShown = true
 
     // Infinite-scroll detection for pages not on the feed list.
     private var pageHeight = 0
@@ -107,12 +122,13 @@ class MainActivity : Activity() {
         when {
             fullscreenView != null -> fullscreenCallback?.onCustomViewHidden()
             popup != null -> closePopup()
+            address?.hasFocus() == true -> address?.clearFocus()
             w != null -> goBack(w)
             else -> finish()
         }
     }
 
-    /** Back to the previous page you were actually on, or to the search screen if there is none. */
+    /** Back to the previous page you were actually on, or to the search screen from Google or if there is none. */
     private fun goBack(w: WebView) {
         val history = w.copyBackForwardList()
         var i = history.currentIndex - 1
@@ -121,8 +137,11 @@ class MainActivity : Activity() {
         lockedNetwork()?.let { locked ->
             while (i >= 0 && Policy.network(Uri.parse(history.getItemAtIndex(i).url)) == locked) i--
         }
-        if (i < 0) {
+        // From Google results, back always means back to the search box, not an earlier search.
+        if (i < 0 || searchMode) {
             web = null
+            topBar = null
+            address = null
             w.destroy()
             showStart()
             return
@@ -159,12 +178,13 @@ class MainActivity : Activity() {
         val view = layoutInflater.inflate(R.layout.start, root, false)
         val input = view.findViewById<EditText>(R.id.input)
         val goButton = view.findViewById<ImageButton>(R.id.go)
-        val go = { if (input.text.isNotBlank()) openPage(toUrl(input.text.toString())) }
+        val go = { if (input.text.isNotBlank()) search(input.text.toString()) }
 
         input.setOnEditorActionListener { _, _, _ -> go(); true }
         input.doAfterTextChanged { goButton.visibility = if (it.isNullOrBlank()) View.GONE else View.VISIBLE }
         goButton.setOnClickListener { go() }
         view.findViewById<View>(R.id.search_bar).setOnClickListener { input.requestFocus() }
+        showRecent(view.findViewById(R.id.recent))
 
         root.removeAllViews()
         root.addView(view, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
@@ -173,6 +193,74 @@ class MainActivity : Activity() {
             getSystemService(InputMethodManager::class.java).showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
         }
     }
+
+    /** Opens a link, or searches Google and remembers the search. */
+    private fun search(input: String) {
+        val text = input.trim()
+        if (!Patterns.WEB_URL.matcher(text).matches()) lastSearch = text
+        openPage(toUrl(text))
+    }
+
+    /** Recent searches as tappable rows under the search box. */
+    private fun showRecent(list: LinearLayout) {
+        list.removeAllViews()
+        val dp = resources.displayMetrics.density
+        val ripple = TypedValue()
+        theme.resolveAttribute(android.R.attr.selectableItemBackground, ripple, true)
+        val borderless = TypedValue()
+        theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, borderless, true)
+        for (query in recentSearches) {
+            val row = LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                setBackgroundResource(ripple.resourceId)
+                setOnClickListener { search(query) }
+            }
+            row.addView(TextView(this).apply {
+                text = query
+                textSize = 15f
+                setTextColor(getColor(R.color.text))
+                isSingleLine = true
+                ellipsize = TextUtils.TruncateAt.END
+                setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_history, 0, 0, 0)
+                compoundDrawablePadding = (16 * dp).toInt()
+                setPaddingRelative((20 * dp).toInt(), (12 * dp).toInt(), 0, (12 * dp).toInt())
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            row.addView(ImageView(this).apply {
+                setImageResource(R.drawable.ic_close)
+                contentDescription = "Delete $query"
+                val pad = (12 * dp).toInt()
+                setPadding(pad, pad, pad, pad)
+                setBackgroundResource(borderless.resourceId)
+                setOnClickListener {
+                    removeSearch(query)
+                    showRecent(list)
+                }
+            }, LinearLayout.LayoutParams((48 * dp).toInt(), (48 * dp).toInt()).apply { marginEnd = (8 * dp).toInt() })
+            list.addView(row)
+        }
+    }
+
+    private fun removeSearch(query: String) {
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+            .putString(RECENT_SEARCHES, recentSearches.filter { it != query }.joinToString("\n"))
+            .remove(LAST_SEARCH).apply()
+    }
+
+    private val recentSearches: List<String>
+        get() {
+            val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+            val saved = prefs.getString(RECENT_SEARCHES, null) ?: prefs.getString(LAST_SEARCH, "")
+            return saved.orEmpty().split('\n').filter { it.isNotBlank() }
+        }
+
+    /** The newest search. Setting it moves it to the front of [recentSearches]. */
+    private var lastSearch: String
+        get() = recentSearches.firstOrNull().orEmpty()
+        set(value) {
+            val list = (listOf(value) + recentSearches.filter { it != value }).take(MAX_RECENT)
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putString(RECENT_SEARCHES, list.joinToString("\n")).remove(LAST_SEARCH).apply()
+        }
 
     private fun EditText.doAfterTextChanged(action: (Editable?) -> Unit) =
         addTextChangedListener(object : TextWatcher {
@@ -191,15 +279,97 @@ class MainActivity : Activity() {
 
         val w = web ?: newWebView(PageClient()).also {
             web = it
-            it.setOnScrollChangeListener { v, x, y, _, _ -> capScroll(v, x, y) }
+            it.setOnScrollChangeListener { v, x, y, _, oldY ->
+                capScroll(v, x, y)
+                slideTopBar(y, y - oldY)
+            }
             root.removeAllViews()
             root.addView(it, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            addTopBar(it)
         }
         w.loadUrl(url)
     }
 
+    // ---- Address bar ----
+
+    private fun addTopBar(w: WebView) {
+        val bar = layoutInflater.inflate(R.layout.top_bar, root, false)
+        val input = bar.findViewById<EditText>(R.id.address)
+        root.addView(bar, FrameLayout.LayoutParams(MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT))
+        topBar = bar
+        address = input
+        topBarShown = true
+        // The page sits below the bar; moving it rather than resizing it keeps scrolling smooth.
+        bar.post { w.translationY = bar.height.toFloat() }
+
+        // The X empties the box and starts typing a new search.
+        val clear = bar.findViewById<View>(R.id.clear)
+        clear.setOnClickListener {
+            input.requestFocus()
+            input.text.clear()
+        }
+        input.doAfterTextChanged { clear.visibility = if (it.isNullOrEmpty()) View.GONE else View.VISIBLE }
+
+        input.setOnFocusChangeListener { _, focused ->
+            val ime = getSystemService(InputMethodManager::class.java)
+            if (focused) {
+                // The newest search, so pressing Go gets you back to its results.
+                input.setText(lastSearch.ifEmpty { currentUrl.orEmpty() })
+                input.selectAll()
+                ime.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+            } else {
+                ime.hideSoftInputFromWindow(input.windowToken, 0)
+                showAddress()
+            }
+        }
+        input.setOnEditorActionListener { _, _, _ ->
+            if (input.text.isNotBlank()) {
+                val text = input.text.toString()
+                input.clearFocus()
+                search(text)
+            }
+            true
+        }
+        bar.findViewById<View>(R.id.search_again).setOnClickListener {
+            lastSearch.takeIf { it.isNotEmpty() }?.let(::search) ?: input.requestFocus()
+        }
+        showAddress()
+    }
+
+    /** Shows the search on Google, otherwise the site you're on, unless you're typing. */
+    private fun showAddress() {
+        val input = address ?: return
+        if (input.hasFocus()) return
+        val uri = currentUrl?.let(Uri::parse)
+        input.setText(currentQuery() ?: uri?.host?.removePrefix("www.").orEmpty())
+    }
+
+    private fun currentQuery(): String? {
+        val uri = currentUrl?.let(Uri::parse) ?: return null
+        return if (Policy.isGoogle(uri) && uri.path == "/search") uri.getQueryParameter("q") else null
+    }
+
+    /** Hides the bar while scrolling down the page and brings it back when scrolling up. */
+    private fun slideTopBar(y: Int, dy: Int) {
+        val bar = topBar ?: return
+        val w = web ?: return
+        val show = when {
+            address?.hasFocus() == true || y <= 0 -> true
+            dy > BAR_SLOP -> false
+            dy < -BAR_SLOP -> true
+            else -> return
+        }
+        if (show == topBarShown) return
+        topBarShown = show
+        val h = bar.height.toFloat()
+        bar.animate().translationY(if (show) 0f else -h).setDuration(BAR_ANIM_MS).start()
+        w.animate().translationY(if (show) h else 0f).setDuration(BAR_ANIM_MS).start()
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     private fun newWebView(client: WebViewClient) = WebView(this).apply {
+        // Shown before a page paints anything, so loading doesn't flash black.
+        setBackgroundColor(getColor(R.color.bg))
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.setSupportMultipleWindows(true)
@@ -235,6 +405,11 @@ class MainActivity : Activity() {
 
     /** The social site the current page is locked to, if any. */
     private fun lockedNetwork() = lockUrl?.let { Policy.network(Uri.parse(it)) }
+
+    /** On Google results, hides Google's own header (logo, menu, sign-in, search box); the tabs stay. */
+    private fun trimGoogle(view: WebView, url: String) {
+        if (Policy.isGoogleSearch(Uri.parse(url))) view.evaluateJavascript(HIDE_GOOGLE_HEADER, null)
+    }
 
     private fun blocked() {
         Toast.makeText(this, "Blocked: this page stays put", Toast.LENGTH_SHORT).show()
@@ -320,6 +495,7 @@ class MainActivity : Activity() {
             val uri = Uri.parse(url)
             if (Policy.isGoogleSearch(uri)) {
                 searchMode = true
+                if (uri.path == "/search") uri.getQueryParameter("q")?.takeIf { it.isNotBlank() }?.let { lastSearch = it }
             } else if (searchMode && Policy.isHttp(uri) && !Policy.isAuth(uri)) {
                 // Left Google search for a result: that result is the new page.
                 searchMode = false
@@ -334,8 +510,12 @@ class MainActivity : Activity() {
             }
         }
 
+        // As early as the new page is drawn, and again once it's loaded in case Google rebuilt it.
+        override fun onPageCommitVisible(view: WebView, url: String) = trimGoogle(view, url)
+
         override fun onPageFinished(view: WebView, url: String) {
             currentUrl = url
+            trimGoogle(view, url)
             val uri = Uri.parse(url)
             if (lockKey == null && !searchMode && Policy.isLocked(uri)) {
                 lockKey = Policy.lockKey(uri)
@@ -465,5 +645,19 @@ class MainActivity : Activity() {
 
     companion object {
         private const val FILE_REQUEST = 1
+        private const val PREFS = "oneshot"
+        private const val LAST_SEARCH = "last_search"
+        private const val RECENT_SEARCHES = "recent_searches"
+        private const val MAX_RECENT = 5
+        private const val BAR_SLOP = 6
+        private const val HIDE_GOOGLE_HEADER = """
+            if (!document.getElementById('oneshot-trim')) {
+                const s = document.createElement('style');
+                s.id = 'oneshot-trim';
+                s.textContent = 'header:has(#tsf), header:has(form[role=search]) { display: none !important; }';
+                document.documentElement.appendChild(s);
+            }
+        """
+        private const val BAR_ANIM_MS = 180L
     }
 }

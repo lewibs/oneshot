@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg">#000000</color>
-    <color name="surface">#141418</color>
-    <color name="stroke">#26262C</color>
-    <color name="text">#FFFFFF</color>
-    <color name="text_muted">#9AA3AF</color>
+    <color name="bg">#22242A</color>
+    <color name="surface">#2C2E35</color>
+    <color name="stroke">#3A3F50</color>
+    <color name="text">#E8EAF2</color>
+    <color name="text_muted">#A7A9B2</color>
     <color name="logo_ring">#FFFFFF</color>
 </resources>
