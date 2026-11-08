@@ -676,7 +676,8 @@ class MainActivity : Activity() {
         private const val BAR_SLOP = 6
         // Runs on Google pages before they're drawn: hides Google's header (logo, menu, sign-in,
         // search box) but keeps the tabs, and in dark mode swaps Google's charcoal for OneShot's black
-        // and its link blues for the logo blue. Results and AI Mode both use it.
+        // and its link blues for the logo blue; blue link text gets the logo's purple-to-blue fade.
+        // Results, AI Mode and the AI Mode panel all use it.
         private const val GOOGLE_SCRIPT = """
             (() => {
                 const host = location.hostname.replace(/^www[.]/, '');
