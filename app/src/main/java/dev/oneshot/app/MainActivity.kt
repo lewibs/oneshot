@@ -36,6 +36,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 
 /**
  * Opens one page and keeps you there. Rules:
@@ -136,6 +138,14 @@ class MainActivity : Activity() {
         // so skip past all of them to whatever came before the locked page.
         lockedNetwork()?.let { locked ->
             while (i >= 0 && Policy.network(Uri.parse(history.getItemAtIndex(i).url)) == locked) i--
+        }
+        // From AI Mode, back goes to the results it was opened from, past the chat's own steps.
+        if (searchMode && w.url?.let { Policy.isAiMode(Uri.parse(it)) } == true) {
+            while (i >= 0 && Policy.isAiMode(Uri.parse(history.getItemAtIndex(i).url))) i--
+            if (i >= 0 && Policy.isGoogleSearch(Uri.parse(history.getItemAtIndex(i).url))) {
+                w.goBackOrForward(i - history.currentIndex)
+                return
+            }
         }
         // From Google results, back always means back to the search box, not an earlier search.
         if (i < 0 || searchMode) {
@@ -300,7 +310,7 @@ class MainActivity : Activity() {
         address = input
         topBarShown = true
         // The page sits below the bar; moving it rather than resizing it keeps scrolling smooth.
-        bar.post { w.translationY = bar.height.toFloat() }
+        bar.post { w.translationY = bar.height.toFloat(); fitUnderBar(w, bar.height) }
 
         // The X empties the box and starts typing a new search.
         val clear = bar.findViewById<View>(R.id.clear)
@@ -363,7 +373,17 @@ class MainActivity : Activity() {
         topBarShown = show
         val h = bar.height.toFloat()
         bar.animate().translationY(if (show) 0f else -h).setDuration(BAR_ANIM_MS).start()
-        w.animate().translationY(if (show) h else 0f).setDuration(BAR_ANIM_MS).start()
+        if (!show) fitUnderBar(w, 0)
+        w.animate().translationY(if (show) h else 0f).setDuration(BAR_ANIM_MS)
+            .withEndAction { if (show && topBarShown) fitUnderBar(w, bar.height) }.start()
+    }
+
+    /** Shortens the page by the bar's height while the bar shows, so nothing pinned to its bottom is cut off. */
+    private fun fitUnderBar(w: WebView, barHeight: Int) {
+        val params = w.layoutParams as FrameLayout.LayoutParams
+        if (params.bottomMargin == barHeight) return
+        params.bottomMargin = barHeight
+        w.layoutParams = params
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -380,6 +400,9 @@ class MainActivity : Activity() {
         settings.displayZoomControls = false
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            WebViewCompat.addDocumentStartJavaScript(this, GOOGLE_SCRIPT, setOf("*"))
+        }
         webViewClient = client
         webChromeClient = Chrome()
         setDownloadListener { url, _, _, _, _ ->
@@ -406,9 +429,11 @@ class MainActivity : Activity() {
     /** The social site the current page is locked to, if any. */
     private fun lockedNetwork() = lockUrl?.let { Policy.network(Uri.parse(it)) }
 
-    /** On Google results, hides Google's own header (logo, menu, sign-in, search box); the tabs stay. */
+    /** Fallback for WebViews too old for document-start scripts: restyles Google once it's drawn. */
     private fun trimGoogle(view: WebView, url: String) {
-        if (Policy.isGoogleSearch(Uri.parse(url))) view.evaluateJavascript(HIDE_GOOGLE_HEADER, null)
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT) &&
+            Policy.isGoogle(Uri.parse(url))
+        ) view.evaluateJavascript(GOOGLE_SCRIPT, null)
     }
 
     private fun blocked() {
@@ -510,7 +535,6 @@ class MainActivity : Activity() {
             }
         }
 
-        // As early as the new page is drawn, and again once it's loaded in case Google rebuilt it.
         override fun onPageCommitVisible(view: WebView, url: String) = trimGoogle(view, url)
 
         override fun onPageFinished(view: WebView, url: String) {
@@ -650,13 +674,115 @@ class MainActivity : Activity() {
         private const val RECENT_SEARCHES = "recent_searches"
         private const val MAX_RECENT = 5
         private const val BAR_SLOP = 6
-        private const val HIDE_GOOGLE_HEADER = """
-            if (!document.getElementById('oneshot-trim')) {
-                const s = document.createElement('style');
-                s.id = 'oneshot-trim';
-                s.textContent = 'header:has(#tsf), header:has(form[role=search]) { display: none !important; }';
-                document.documentElement.appendChild(s);
-            }
+        // Runs on Google pages before they're drawn: hides Google's header (logo, menu, sign-in,
+        // search box) but keeps the tabs, and in dark mode swaps Google's charcoal for OneShot's black
+        // and its link blues for the logo blue. Results and AI Mode both use it.
+        private const val GOOGLE_SCRIPT = """
+            (() => {
+                const host = location.hostname.replace(/^www[.]/, '');
+                if (host.split('.')[0] !== 'google' || window.oneshotGoogle) return;
+                window.oneshotGoogle = true;
+                const dark = matchMedia('(prefers-color-scheme: dark)');
+                const map = {
+                    '#22242a': '#000000', '#16171a': '#000000',
+                    '#2c2e35': '#141418', '#2c303d': '#141418', '#2d2f35': '#141418', '#2d2f38': '#141418',
+                    '#28292a': '#141418', '#303134': '#141418',
+                    '#363840': '#1c1c22', '#42444d': '#26262c', '#3a3f50': '#26262c', '#4e5059': '#33333b',
+                    '#99c3ff': '#3b82f6', '#a8c7fa': '#3b82f6', '#8ab4f8': '#3b82f6', '#b1c5ff': '#3b82f6'
+                };
+                // The same colours as they appear in computed gradients, e.g. "rgb(34, 36, 42)".
+                const rgb = {};
+                for (const hex in map) {
+                    const n = parseInt(hex.slice(1), 16);
+                    rgb['rgb(' + (n >> 16) + ', ' + (n >> 8 & 255) + ', ' + (n & 255) + ')'] = map[hex];
+                }
+                const hexOrRgb = new RegExp(Object.keys(map).join('|') + '|' +
+                    Object.keys(rgb).map(c => c.replace(/[()]/g, '[(]').replace(/[)]/g, '[)]')).join('|'), 'gi');
+                const swap = c => map[c.toLowerCase()] || rgb[c];
+                const BASE = 'header:has(#tsf), header:has(form[role=search]),' +
+                    'body > :has(#gb):not(:has([role=navigation], #rso, #main)) { display: none !important; }' +
+                    '@media (prefers-color-scheme: dark) { html, body { background: #000 !important; } }' +
+                    '.oneshot-link { background: linear-gradient(90deg, #8b2cf5, #3b82f6) !important;' +
+                    '-webkit-background-clip: text !important; background-clip: text !important;' +
+                    '-webkit-text-fill-color: transparent !important;' +
+                        '-webkit-box-decoration-break: clone; box-decoration-break: clone; }';
+
+                // Every rule that sets a colour variable or a background to one of Google's dark colours gets
+                // an !important twin with OneShot's colour, wherever it is: Google redefines its variables
+                // on many elements, not just :root.
+                const rules = [], seen = new WeakSet();
+                let theme = null, count = -1;
+                const scan = list => {
+                    for (const r of list) {
+                        if (seen.has(r)) continue;
+                        if (r.media && !matchMedia(r.media.mediaText).matches) continue;
+                        if (r.cssRules && !r.style) { scan(r.cssRules); continue; }
+                        seen.add(r);
+                        if (!r.style || !r.selectorText) continue;
+                        let out = '';
+                        for (const p of r.style) {
+                            if (!p.startsWith('--') && !/^background(-color|-image)?$/.test(p)) continue;
+                            const v = r.style.getPropertyValue(p), to = v.replace(hexOrRgb, swap);
+                            if (to !== v) out += p + ':' + to + ' !important;';
+                        }
+                        if (out) rules.push(r.selectorText + '{' + out + '}');
+                    }
+                };
+                const remap = () => {
+                    const root = document.documentElement;
+                    if (!root) return;
+                    if (!theme) { theme = document.createElement('style'); theme.id = 'oneshot-google'; }
+                    if (dark.matches) {
+                        for (const sheet of document.styleSheets) {
+                            if (sheet.ownerNode === theme) continue;
+                            try { scan(sheet.cssRules) } catch (e) {}
+                        }
+                    }
+                    if (rules.length !== count) { count = rules.length; theme.textContent = BASE + rules.join(''); }
+                    if (theme.parentNode !== root) root.appendChild(theme);
+                };
+                // Link text gets the logo's purple-to-blue fade. Links are found by their blue text, which
+                // keeps buttons, chips and plain text links Google styles otherwise as they are.
+                const blue = c => {
+                    const [r, g, b] = c.match(/\d+/g).map(Number);
+                    return b >= 150 && b - r >= 40 && b - g >= 30;
+                };
+                const paint = () => {
+                    for (const a of document.querySelectorAll('a')) {
+                        for (const el of [a, ...a.querySelectorAll('*')]) {
+                            if (![...el.childNodes].some(n => n.nodeType === 3 && n.data.trim())) continue;
+                            const cs = getComputedStyle(el);
+                            const on = blue(cs.color) && cs.backgroundColor === 'rgba(0, 0, 0, 0)' && cs.backgroundImage === 'none' ||
+                                el.classList.contains('oneshot-link') && blue(cs.color);
+                            el.classList.toggle('oneshot-link', on);
+                        }
+                    }
+                };
+                let painting = false;
+                const repaint = () => {
+                    if (painting) return;
+                    painting = true;
+                    requestAnimationFrame(() => { painting = false; paint(); });
+                };
+                new MutationObserver(repaint).observe(document, { childList: true, subtree: true });
+                document.addEventListener('DOMContentLoaded', repaint);
+
+                // Google adds styles as it goes (results stream in, AI Mode loads its chat), so remap each
+                // time before the next frame is drawn.
+                let queued = false;
+                const later = () => {
+                    if (queued) return;
+                    queued = true;
+                    requestAnimationFrame(() => { queued = false; remap(); });
+                };
+                new MutationObserver(records => {
+                    for (const m of records) for (const n of m.addedNodes)
+                        if (n.nodeName === 'STYLE' || n.nodeName === 'LINK' || n.nodeName === 'HTML') { remap(); return later(); }
+                }).observe(document, { childList: true, subtree: true });
+                document.addEventListener('load', () => { later(); repaint(); }, true);
+                document.addEventListener('DOMContentLoaded', remap);
+                remap();
+            })();
         """
         private const val BAR_ANIM_MS = 180L
     }

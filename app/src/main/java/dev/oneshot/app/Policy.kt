@@ -80,6 +80,9 @@ object Policy {
         it == "/search" || it == "/" || it == "" || it == "/webhp" || it == "/url"
     }
 
+    /** Google's AI Mode chat, which is a results page with udm=50. */
+    fun isAiMode(uri: Uri) = isGoogle(uri) && uri.getQueryParameter("udm") == "50"
+
     /** Roughly the registrable domain: "m.youtube.com" -> "youtube.com", "bbc.co.uk" stays. */
     fun site(uri: Uri): String? {
         val labels = uri.host?.lowercase()?.split('.') ?: return null
